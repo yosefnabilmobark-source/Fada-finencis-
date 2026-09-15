@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Fada System</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#0e0e0e;color:#f5f5f5;font-family:Arial,sans-serif}
+.wrap{max-width:1100px;margin:auto;padding:18px}.top{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:18px}
+.logo{font-size:28px;font-weight:800;letter-spacing:1px}.sub{color:#aaa;font-size:12px}
+nav{display:flex;gap:8px;overflow:auto;margin-bottom:18px}nav button,.btn{border:1px solid #333;background:#171717;color:#eee;padding:10px 14px;border-radius:10px;cursor:pointer}
+nav button.active,.btn.main{background:#f5f5f5;color:#0e0e0e}
+.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}.card{background:#151515;border:1px solid #292929;border-radius:16px;padding:16px}.label{color:#999;font-size:12px}.num{font-size:25px;font-weight:800;margin-top:7px}
+.section{margin-top:18px}.sectionhead{display:flex;justify-content:space-between;align-items:center;margin-bottom:10px}
+table{width:100%;border-collapse:collapse;background:#151515;border-radius:14px;overflow:hidden}th,td{padding:11px;border-bottom:1px solid #292929;text-align:right;font-size:13px}th{color:#aaa}
+input,select{width:100%;padding:11px;background:#101010;color:#fff;border:1px solid #333;border-radius:9px}label{font-size:12px;color:#aaa;display:block;margin-bottom:5px}.form{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}.full{grid-column:1/-1}
+.modal{position:fixed;inset:0;background:#000b;display:none;align-items:center;justify-content:center;padding:15px}.modal.open{display:flex}.box{background:#171717;border:1px solid #333;border-radius:18px;padding:18px;width:min(560px,100%);max-height:90vh;overflow:auto}
+.empty{text-align:center;color:#888;padding:30px}.danger{color:#ff8f8f}.ok{color:#b9e0c0}
+@media(max-width:750px){.grid{grid-template-columns:repeat(2,1fr)}.form{grid-template-columns:1fr}table{font-size:11px}.wrap{padding:12px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header class="top"><div><div class="logo">FADA</div><div class="sub">Simple Silver Business System</div></div><button class="btn main" onclick="newSale()">+ بيع جديد</button></header>
+<nav id="nav"></nav>
+<main id="app"></main>
+</div>
+<div class="modal" id="modal"><div class="box" id="modalBox"></div></div>
+<script>
+const K='fada_v2';
+let db=JSON.parse(localStorage.getItem(K)||'null')||{products:[],sales:[],cash:[],silver:[],customers:[],suppliers:[]};
+let page='dashboard';
+function save(){localStorage.setItem(K,JSON.stringify(db));render()}
+function money(x){return Number(x||0).toLocaleString('ar-EG',{maximumFractionDigits:2})+' ج.م'}
+function grams(x){return Number(x||0).toLocaleString('en-US',{maximumFractionDigits:3})+' g'}
+function esc(s){return String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[m]))}
+function nav(){let items=[['dashboard','الرئيسية'],['sales','المبيعات'],['products','المنتجات'],['cash','الفلوس'],['silver','الفضة']];document.getElementById('nav').innerHTML=items.map(x=>`<button class="${page==x[0]?'active':''}" onclick="page='${x[0]}';render()">${x[1]}</button>`).join('')}
+function render(){nav();let a=document.getElementById('app');({dashboard:dashboard,sales:sales,products:products,cash:cash,silver:silver}[page]||dashboard)()}
+function dashboard(){
+let revenue=db.sales.filter(s=>s.status!=='cancelled').reduce((a,s)=>a+s.total,0);
+let paid=db.sales.filter(s=>s.status!=='cancelled').reduce((a,s)=>a+s.paid,0);
+let cashIn=db.cash.filter(x=>x.type==='in').reduce((a,x)=>a+x.amount,0),cashOut=db.cash.filter(x=>x.type==='out').reduce((a,x)=>a+x.amount,0);
+let sin=db.silver.filter(x=>x.type==='in').reduce((a,x)=>a+x.weight,0),sout=db.silver.filter(x=>x.type==='out').reduce((a,x)=>a+x.weight,0);
+let profit=db.sales.filter(s=>s.status!=='cancelled').reduce((a,s)=>a+s.profit,0);
+a=document.getElementById('app');a.innerHTML=`<div class="grid">
+<div class="card"><div class="label">إجمالي المبيعات</div><div class="num">${money(revenue)}</div></div>
+<div class="card"><div class="label">المتحصل</div><div class="num">${money(paid)}</div></div>
+<div class="card"><div class="label">الرصيد النقدي</div><div class="num">${money(cashIn-cashOut)}</div></div>
+<div class="card"><div class="label">الفضة الحالية</div><div class="num">${grams(sin-sout)}</div></div>
+<div class="card"><div class="label">الربح</div><div class="num ok">${money(profit)}</div></div>
+<div class="card"><div class="label">المبيعات</div><div class="num">${db.sales.length}</div></div>
+<div class="card"><div class="label">الفضة الداخلة</div><div class="num">${grams(sin)}</div></div>
+<div class="card"><div class="label">الفضة الخارجة</div><div class="num">${grams(sout)}</div></div>
+</div>
+<div class="section card"><div class="sectionhead"><h3>آخر المبيعات</h3><button class="btn main" onclick="newSale()">+ بيع</button></div>
+${db.sales.length?`<table><tr><th>التاريخ</th><th>المنتج</th><th>العميل</th><th>الإجمالي</th><th>الربح</th></tr>${db.sales.slice(-8).reverse().map(s=>`<tr><td>${s.date}</td><td>${esc(s.productName)}</td><td>${esc(s.customer||'-')}</td><td>${money(s.total)}</td><td>${money(s.profit)}</td></tr>`).join('')}</table>`:'<div class="empty">لسه مفيش مبيعات.</div>'}</div>`}
+function sales(){
+let a=document.getElementById('app');a.innerHTML=`<div class="sectionhead"><h2>المبيعات</h2><button class="btn main" onclick="newSale()">+ بيع جديد</button></div>
+<div class="card">${db.sales.length?`<table><tr><th>التاريخ</th><th>المنتج</th><th>الكمية</th><th>الإجمالي</th><th>المدفوع</th><th>المتبقي</th><th>الربح</th></tr>${db.sales.slice().reverse().map(s=>`<tr><td>${s.date}</td><td>${esc(s.productName)}</td><td>${s.qty}</td><td>${money(s.total)}</td><td>${money(s.paid)}</td><td>${money(s.total-s.paid)}</td><td>${money(s.profit)}</td></tr>`).join('')}</table>`:'<div class="empty">مفيش مبيعات لسه.</div>'}</div>`}
+function products(){
+let a=document.getElementById('app');a.innerHTML=`<div class="sectionhead"><h2>المنتجات</h2><button class="btn main" onclick="newProduct()">+ منتج</button></div><div class="card">${db.products.length?`<table><tr><th>المنتج</th><th>سعر البيع</th><th>وزن الفضة</th><th>تكلفة التصنيع</th></tr>${db.products.map(p=>`<tr><td>${esc(p.name)}</td><td>${money(p.price)}</td><td>${grams(p.weight)}</td><td>${money(p.manufacturing)}</td></tr>`).join('')}</table>`:'<div class="empty">أضف أول منتج عشان البيع يتحسب تلقائي.</div>'}</div>`}
+function cash(){let a=document.getElementById('app');a.innerHTML=`<div class="sectionhead"><h2>حركة الفلوس</h2><button class="btn main" onclick="moneyTx()">+ حركة</button></div><div class="card">${db.cash.length?`<table><tr><th>التاريخ</th><th>النوع</th><th>البيان</th><th>الطريقة</th><th>المبلغ</th></tr>${db.cash.slice().reverse().map(x=>`<tr><td>${x.date}</td><td class="${x.type==='in'?'ok':'danger'}">${x.type==='in'?'داخل':'خارج'}</td><td>${esc(x.note)}</td><td>${esc(x.method)}</td><td>${money(x.amount)}</td></tr>`).join('')}</table>`:'<div class="empty">مفيش حركات فلوس.</div>'}</div>`}
+function silver(){let a=document.getElementById('app');a.innerHTML=`<div class="sectionhead"><h2>حركة الفضة</h2><button class="btn main" onclick="silverTx()">+ حركة</button></div><div class="card">${db.silver.length?`<table><tr><th>التاريخ</th><th>النوع</th><th>السبب</th><th>الوزن</th><th>التكلفة</th></tr>${db.silver.slice().reverse().map(x=>`<tr><td>${x.date}</td><td>${x.type==='in'?'داخل':'خارج'}</td><td>${esc(x.note)}</td><td>${grams(x.weight)}</td><td>${money(x.cost||0)}</td></tr>`).join('')}</table>`:'<div class="empty">مفيش حركة فضة.</div>'}</div>`}
+function openModal(html){document.getElementById('modalBox').innerHTML=html;document.getElementById('modal').classList.add('open')}
+function closeModal(){document.getElementById('modal').classList.remove('open')}
+document.getElementById('modal').onclick=e=>{if(e.target.id==='modal')closeModal()}
+function newProduct(){openModal(`<h2>منتج جديد</h2><div class="form">
+<div><label>اسم المنتج</label><input id="pn"></div><div><label>سعر البيع</label><input id="pp" type="number"></div>
+<div><label>وزن الفضة بالجرام</label><input id="pw" type="number" step=".001"></div><div><label>تكلفة تصنيع</label><input id="pm" type="number"></div>
+<div><label>تكلفة تغليف</label><input id="px" type="number"></div><div><label>تكلفة أخرى</label><input id="po" type="number"></div>
+</div><br><button class="btn main" onclick="addProduct()">حفظ</button> <button class="btn" onclick="closeModal()">إلغاء</button>`)}
+function addProduct(){db.products.push({id:Date.now(),name:pn.value,price:+pp.value,weight:+pw.value,manufacturing:+pm.value,packaging:+px.value,other:+po.value});closeModal();save()}
+function newSale(){if(!db.products.length){alert('أضف منتج الأول.');page='products';render();return}
+openModal(`<h2>بيع جديد</h2><div class="form">
+<div><label>المنتج</label><select id="sp">${db.products.map(p=>`<option value="${p.id}">${esc(p.name)}</option>`).join('')}</select></div>
+<div><label>الكمية</label><input id="sq" type="number" value="1" min="1"></div>
+<div><label>العميل</label><input id="sc"></div><div><label>الخصم</label><input id="sd" type="number" value="0"></div>
+<div><label>المدفوع</label><input id="spaid" type="number"></div><div><label>طريقة الدفع</label><select id="sm"><option>Cash</option><option>Instapay</option><option>Wallet</option><option>Bank</option></select></div>
+</div><br><button class="btn main" onclick="addSale()">حفظ البيع</button> <button class="btn" onclick="closeModal()">إلغاء</button>`)}
+function addSale(){let p=db.products.find(x=>x.id==+sp.value),q=+sq.value||1,discount=+sd.value||0,total=p.price*q-discount,paid=+spaid.value||0;
+let avg=avgSilverCost(), silverUsed=p.weight*q, silverCost=silverUsed*avg, cost=silverCost+(p.manufacturing+p.packaging+p.other)*q,profit=total-cost;
+let id='FADA-'+Date.now(),date=new Date().toLocaleDateString('en-CA');
+db.sales.push({id,date,productId:p.id,productName:p.name,qty:q,customer:sc.value,total,paid,profit,silverUsed,status:'completed'});
+if(paid)db.cash.push({id:Date.now()+1,date,type:'in',amount:paid,method:sm.value,note:'تحصيل من بيع '+id});
+db.silver.push({id:Date.now()+2,date,type:'out',weight:silverUsed,cost:silverCost,note:'فضة مستخدمة في بيع '+id});
+closeModal();save()}
+function avgSilverCost(){let w=0,c=0;for(const x of db.silver){if(x.type==='in'){w+=x.weight;c+=x.cost||0}else{w-=x.weight}}return w>0?c/w:0}
+function moneyTx(){openModal(`<h2>حركة فلوس</h2><div class="form"><div><label>النوع</label><select id="mt"><option value="in">داخل</option><option value="out">خارج</option></select></div><div><label>المبلغ</label><input id="ma" type="number"></div><div><label>طريقة الدفع</label><select id="mm"><option>Cash</option><option>Instapay</option><option>Wallet</option><option>Bank</option></select></div><div><label>البيان</label><input id="mn"></div></div><br><button class="btn main" onclick="addMoney()">حفظ</button>`)}
+function addMoney(){db.cash.push({id:Date.now(),date:new Date().toLocaleDateString('en-CA'),type:mt.value,amount:+ma.value||0,method:mm.value,note:mn.value});closeModal();save()}
+function silverTx(){openModal(`<h2>حركة فضة</h2><div class="form"><div><label>النوع</label><select id="st"><option value="in">داخل</option><option value="out">خارج</option></select></div><div><label>الوزن بالجرام</label><input id="sw" type="number" step=".001"></div><div><label>التكلفة الإجمالية (للداخل فقط)</label><input id="sco" type="number"></div><div><label>البيان</label><input id="sn"></div></div><br><button class="btn main" onclick="addSilver()">حفظ</button>`)}
+function addSilver(){db.silver.push({id:Date.now(),date:new Date().toLocaleDateString('en-CA'),type:st.value,weight:+sw.value||0,cost:+sco.value||0,note:sn.value});closeModal();save()}
+render();
+</script>
+</body></html>
